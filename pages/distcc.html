@@ -1,0 +1,218 @@
+<!DOCTYPE html><html><head><title>Charlène's - Cross compiling ports with distcc on OpenBSD</title>
+<meta charset="utf-8">
+
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="/assets/style.css">
+        <link rel="icon" href="/assets/favicon.ico">
+
+</head>
+<body class='pod'>
+<!-- start doc -->
+
+    <div> <h1><a href="/" title="HomePage">Charlène's</a></h1> <p
+    class="subtitle">...  it's worse than your datacenter.</p> <hr/> <div
+    class="navbar"> <a href="/">Home</a>&nbsp;|&nbsp;<a
+    href="https://git.charlenew.xyz">Git Repo</a>&nbsp;|&nbsp;<a
+    href="/stuff">Stuff</a>&nbsp;|&nbsp;<a href="/feed.atom">Atom feed</a>
+    <hr>
+    </div>
+
+<h2><a class='u'
+name="Cross_compiling_ports_with_distcc_on_OpenBSD"
+>Cross compiling ports with distcc on OpenBSD</a></h2>
+
+<p><i>Latest update: 2021-08-03</i></p>
+
+<p>One thing is sure; compiling software on OpenBSD/macppc requires a lot of patience,
+even with several machines and distcc.
+I can&#39;t add machines indefinitely ...
+but since the move to clang,
+it&#39;s now possible to use an amd64 machine as a macppc distcc helper,
+reducing greatly build times.</p>
+
+<p>It&#39;s not the perfect solution or setup,
+i&#39;m detailing the caveats at the end.</p>
+
+<p>Note that while macppc is targeted here,
+it can be used on any arch that has clang as the base-compiler and is super slow (hello armv7).</p>
+
+<h3><a class='u'
+name="Pre-requisites"
+>Pre-requisites</a></h3>
+
+<ul>
+<li>a macppc machine that builds ports with PORTS_PRIVSEP.</li>
+
+<li>another OpenBSD/amd64 machine on the same network</li>
+
+<li>3GB of disk space on a mounted partition on the amd64 machine,
+because we will use distcc in a chroot for simplicity and slightly more security.</li>
+</ul>
+
+<p>All commands prepended by <code>#</code> must be run as root.</p>
+
+<h3><a class='u'
+name="Preparing_the_macppc_machine"
+>Preparing the macppc machine</a></h3>
+
+<p>At first,
+install and setup distcc:</p>
+
+<pre># mkdir /var/distcc
+# chown _pbuild /var/distcc
+# pkg_add distcc</pre>
+
+<p><i>(If you can&#39;t install distcc due to libraries, continue that part. The next part contains a workaround.)</i></p>
+
+<p>Now you need to tell <code>/etc/mk.conf</code> that you want to use distcc, so add to it:</p>
+
+<pre>COMPILER_WRAPPER=/usr/bin/env \
+   DISTCC_IO_TIMEOUT=600 \
+   DISTCC_DIR=/var/distcc \
+   DISTCC_HOSTS=&#34;ip_amd64_machine/8&#34; \
+   DISTCC_VERBOSE=0 \
+   distcc</pre>
+
+<p>The <code>/8</code> represents the number of jobs you want the helper machines to do.</p>
+
+<p>Also, you need to modify <code>/etc/pf.conf</code> to let <code>_pbuild</code> access to the network, and since you should have set up a block for it for PORTS_PRIVSEP, remove that.</p>
+
+<h4><a class='u'
+name="I_can&#39;t_install_distcc_on_$SLOW_ARCH_due_to_library_issues!"
+>I can&#39;t install distcc on $SLOW_ARCH due to library issues!</a></h4>
+
+<p>Because of ABI changes (notably libc/libcxx and python) in the distcc dependencies, you may not be able to install distcc. I&#39;ve an alternative distcc port, conflicting with distcc: <code>devel/distcc-minimal</code>, requiring only the bare minimum. Here is how to install it:</p>
+
+<p><i>(gtar can do smarter things and avoid to extract everything, by the way.)</i></p>
+
+<pre>$ cd /tmp
+$ ftp -o - https://git.charlenew.xyz/mystuff.public-latest.tar.gz | tar xvzf -
+$ cp -a mystuff.public-latest/devel/distcc-minimal /usr/ports/devel</pre>
+
+<p>Now comment the COMPILER_WRAPPER lines in <code>/etc/mk.conf</code>, then:</p>
+
+<pre>$ cd /usr/ports/devel/distcc-minimal &#38;&#38; make install</pre>
+
+<p>And finally uncomment the COMPILER_WRAPPER lines in <code>/etc/mk.conf</code>.</p>
+
+<h3><a class='u'
+name="Preparing_the_amd64_machine"
+>Preparing the amd64 machine</a></h3>
+
+<p>At first we&#39;re going to create the chroot, you&#39;ll need <code>proot</code> from our ports tree. Note that you *want* your chroot to be in a mounted partition that at least has no <code>nodev</code> (and you possibly want <code>wxallowed</code>):</p>
+
+<pre># /usr/ports/infrastructure/bin/proot -B /some/where/my_macppc_chroot \
+   actions=chown_all
+# cp /etc/installurl /some/where/my_macppc_chroot/etc</pre>
+
+<p>Enter in the chroot</p>
+
+<pre># chroot /some/where/my_macppc_chroot</pre>
+
+<p>So basically what we&#39;re doing here is removing the base compiler binaries and replace them with cross-compilation wrappers:</p>
+
+<pre># pkg_add llvm distcc-server
+# cd /usr/bin
+# rm cc c++ clang clang++ clang-cpp
+# cat &#62; cc
+exec /usr/local/bin/clang  --target=&#34;powerpc-unknown-openbsd&#34; &#34;$@&#34;
+^D
+# for i in c++ clang clang++ clang-cpp; do ln -s cc $i; done
+# chmod 755 cc</pre>
+
+<p>Distcc, unless you use <code>--make-me-a-botnet</code>, only runs allowed commands, so we&#39;re generating an allowed list with our compilers:</p>
+
+<pre># mkdir -p /etc/distcc
+# for i in cc c++ clang clang++ clang-cpp; do \
+   echo /usr/bin/$i &#62;&#62; /etc/distcc/commands.allow; done</pre>
+
+<p>And we need also to do some masquerading:</p>
+
+<pre># mkdir -p  /usr/local/lib/distcc
+# cd /usr/local/lib/distcc
+# for i in cc c++ clang clang++ clang-cpp; do ln -s /usr/bin/$i $i; done</pre>
+
+<p>The next step will be configuring distccd itself, we&#39;ll need to add an environment variable, something that would require a separate login class if done perfectly. Instead we&#39;re creating our own service:</p>
+
+<pre># cp /etc/rc.d/distccd{,_local}
+# vi /etc/rc.d/distccd_local</pre>
+
+<p>Modify the below lines to get something like this:</p>
+
+<pre>daemon=&#34;/usr/bin/env DISTCC_CMDLIST=/etc/distcc/commands.allow /usr/local/bin/distccd&#34;
+[...]
+daemon_flags=&#34;--daemon --allow 127.0.0.1 --allow ip_powerbook&#34;</pre>
+
+<p>Now is the time to run distccd:</p>
+
+<pre># rcctl enable distccd_local
+# rcctl start distccd_local</pre>
+
+<p>You can leave the chroot.</p>
+
+<h3><a class='u'
+name="Building_ports"
+>Building ports</a></h3>
+
+<p>Sit back and have fun, ports are now built transparently with distcc, you can use dpb as well, which is recommended as distcc works better with 2 or more concurrent compilations.</p>
+
+<p>You won&#39;t need to touch the chroot until the next base-clang ABI change, and can control the chroot&#39;d distccd with:</p>
+
+<pre># chroot /some/where/my_macppc_chroot rcctl {start,stop} distccd_local</pre>
+
+<p>By default, logs are in <em>/var/log/daemon</em>.</p>
+
+<h3><a class='u'
+name="Security?"
+>Security?</a></h3>
+
+<p>A distcc premise is that you should only use it on a trusted network.</p>
+
+<p>Filtering by IP address does not protect you from spoofing, and commands whitelisting is great, but compilers can still be used without any authentification.</p>
+
+<p>To address this you may use distcc with ssh or GSS-API, but these solutions are more complex to set up given that the _distcc user would require to be setup as something more akin to a regular user.</p>
+
+<h3><a class='u'
+name="Jobs?"
+>Jobs?</a></h3>
+
+<p>Actually a PowerBook G4 A1138 (1.67GHz) can provide only 8 jobs at best to the amd64 machines.</p>
+
+<p>On top of that some ports like lang/gcc bootstrap themselves and can&#39;t be built via distcc. distcc is just a compiler wrapper, ports that don&#39;t compile anything are run in the macppc machine, and so are the configure stage, linking, and ports not using the base compiler.</p>
+
+<p>Putting a high number of jobs clogs the machine in these cases and jobs are not sent to the amd64 distcc helper.</p>
+
+<p>As such, i&#39;m using 6 dpb jobs as a good tradeoff, but you can put more if you&#39;re building a single port with all its depends built.</p>
+
+<p>It still allows me to build cad/oce within 5 hours, instead of 53 hours in the macppc bulk cluster, webkitgtk4 takes only 4 hours.</p>
+
+<h3><a class='u'
+name="Bonus:_use_ccache_with_distcc"
+>Bonus: use ccache with distcc</a></h3>
+
+<p>Sometimes, you build the same port over and over again, so using ccache may speed up things even further. I prefer to cache on the macppc machine, since it&#39;s faster than using the network. It&#39;s pretty easy to set up. All the following commands need to be issued on the macppc machine.</p>
+
+<p>At first, create a distcc wrapper that we will use later:</p>
+
+<pre># cat &#62; /usr/local/bin/distccwraper
+#!/bin/sh
+/usr/bin/env \
+    DISTCC_IO_TIMEOUT=600 \
+    DISTCC_DIR=/var/distcc \
+    DISTCC_HOSTS=ip_amd64_machine/8 \
+    DISTCC_VERBOSE=0 \
+    distcc &#34;$@&#34;
+^D
+# chmod 0755 /usr/local/bin/distccwrapper</pre>
+
+<p>Next, you need to edit <em>/etc/mk.conf</em>, remove the <code>COMPILER_WRAPPER</code> lines we have set up before, and add the following lines:</p>
+
+<pre>USE_CCACHE=Yes
+# You may want to reduce the 50G max cache size :)
+CCACHE_ENV=&#34;CCACHE_PREFIX=/usr/local/bin/distccwrapper CCACHE_MAXSIZE=50G&#34;</pre>
+
+<p>And that&#39;s it, you&#39;re good to go :)</p>
+
+<!-- end doc -->
+
+</body></html>

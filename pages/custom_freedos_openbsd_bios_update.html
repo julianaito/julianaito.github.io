@@ -1,0 +1,78 @@
+<!DOCTYPE html><html><head><title>Charlène's - Create a custom FreeDOS USB live media on OpenBSD</title>
+<meta charset="utf-8">
+
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="/assets/style.css">
+        <link rel="icon" href="/assets/favicon.ico">
+
+</head>
+<body class='pod'>
+<!-- start doc -->
+
+    <div> <h1><a href="/" title="HomePage">Charlène's</a></h1> <p
+    class="subtitle">...  it's worse than your datacenter.</p> <hr/> <div
+    class="navbar"> <a href="/">Home</a>&nbsp;|&nbsp;<a
+    href="https://git.charlenew.xyz">Git Repo</a>&nbsp;|&nbsp;<a
+    href="/stuff">Stuff</a>&nbsp;|&nbsp;<a href="/feed.atom">Atom feed</a>
+    <hr>
+    </div>
+
+<h2><a class='u'
+name="Create_a_custom_FreeDOS_USB_live_media_on_OpenBSD"
+>Create a custom FreeDOS USB live media on OpenBSD</a></h2>
+
+<p><i>Latest update: 2021-01-11</i></p>
+
+<p>While modern BIOSes are actually tiny operating systems that can update themself through the net,
+i still have a number of old machines that requires either Windows or a MS-DOS &#39;floppy&#39; to update their bios.</p>
+
+<p>I&#39;ll show here how you can create a custom FreeDOS image on OpenBSD,
+a very straightforward process.
+You&#39;ll need an usb flashdrive with a size greater or equal to 32MB -- <b>all data will be wiped on it!</b></p>
+
+<p>At first,
+prepare a working directory and download FreeDOS:</p>
+
+<pre>$ doas pkg_add unzip
+$ cd; mkdir dosimg
+$ ftp https://www.ibiblio.org/pub/micro/pc-stuff/freedos/files/distributions/1.2/FD12LITE.zip
+$ unzip FD12LITE.zip</pre>
+
+<p>Next, mount the raw image:</p>
+
+<pre>$ doas mount_vnd FD12LITE.img vnd0
+$ doas mount /dev/vnd0i /mnt
+$ cd /mnt</pre>
+
+<p>Remove the base packages since we&#39;re not installing FreeDOS anyway, and create a directory for our bios files:</p>
+
+<pre>$ doas rm -rf fdsetup/packages/
+$ mkdir bios</pre>
+
+<p>Download your bios update zip file and extract it in <em>/mnt/bios</em>. Note that in Asus&#39; case, you need the companion utility as well. Shuttle provides all in one bundles (thanks!). In the end you should have some EXE file along your BIOS rom.</p>
+
+<p>Once done, it&#39;s time to close our image file:</p>
+
+<pre>$ cd ~/dosimg
+$ doas umount /mnt
+$ doas vnconfig -u vnd0
+$ doas vnconfig -l # if you want to check</pre>
+
+<p>It&#39;s time to put our modified image file to our usb flashdrive. Be sure to not overwrite the wrong device by checking the output of <code>dmesg</code> after plugging it, or by using <a href="https://git.charlenew.xyz/scripts/sdd/" class="podlinkurl"
+>sdd</a> instead of <code>dd(1)</code>:</p>
+
+<pre>$ doas umount /dev/sd(Xn) # if you have some automount on your system
+$ doas dd if=FD12LITE.img of=/dev/rsd(Xn)c bs=1M</pre>
+
+<p>You can now boot using your usb flash drive, the FreeDOS installer will then ask you for your language then you will be able to return to DOS.</p>
+
+<p>If you&#39;ve forgotten MS-DOS basics, here is (approximately) how to run the BIOS update (here an Asus one):</p>
+
+<pre>C:\&#62; cd bios
+C:\&#62; bupdater.exe /iBIOS1201.ROM</pre>
+
+<p>Hope it helps :)</p>
+
+<!-- end doc -->
+
+</body></html>

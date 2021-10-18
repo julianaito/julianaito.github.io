@@ -1,0 +1,67 @@
+<!DOCTYPE html><html><head><title>Charlène's - Loading a mpv profile according to the CPU model on OpenBSD</title>
+<meta charset="utf-8">
+
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="/assets/style.css">
+        <link rel="icon" href="/assets/favicon.ico">
+
+</head>
+<body class='pod'>
+<!-- start doc -->
+
+    <div> <h1><a href="/" title="HomePage">Charlène's</a></h1> <p
+    class="subtitle">...  it's worse than your datacenter.</p> <hr/> <div
+    class="navbar"> <a href="/">Home</a>&nbsp;|&nbsp;<a
+    href="https://git.charlenew.xyz">Git Repo</a>&nbsp;|&nbsp;<a
+    href="/stuff">Stuff</a>&nbsp;|&nbsp;<a href="/feed.atom">Atom feed</a>
+    <hr>
+    </div>
+
+<h2><a class='u'
+name="Loading_a_mpv_profile_according_to_the_CPU_model_on_OpenBSD"
+>Loading a mpv profile according to the CPU model on OpenBSD</a></h2>
+
+<p><i>Latest update: 2021-07-11</i></p>
+
+<p>I recently found out that mpv was stuttering when i used it on my old Intel Pineview Atom box because the normalisation audio filter munched all the CPU time.
+I wondered if i could load a profile according to the CPU used,
+and finally managed to do it.</p>
+
+<p>I thought that it would be integrated with the <code>profile-desc=cond:some_lua_code</code> helper,
+but it did not work at all.</p>
+
+<p>So at first,
+in my <code>~/.config/mpv/mpv.conf</code>,
+i defined options for the default profile,
+then the Atom specific profile,
+with youtube-dl options as a goodie:</p>
+
+<pre># Better youtube quality on higher specced machines
+ytdl-format=best[height&#60;=?1080]
+# Normalize the audio output
+af=loudnorm=I=-15
+
+[atom]
+# Reduce youtube quality on that slow Atom box
+ytdl-format=best[height&#60;=?360]
+# And clear the normalization audio filter (it uses a lot of cpu)
+af=</pre>
+
+<p>mpv has lua scripting capabilities that will be required to make the profile autoloading work. As expected, if the CPU model is an Atom, it will apply the &#34;atom&#34; profile.</p>
+
+<pre>$ cd ~/.config/mpv
+$ mkdir scripts
+$ cat &#62; scripts/autoprofile.lua
+h = io.popen(&#34;sysctl hw.model&#34;)
+v = h:read(&#34;*a&#34;)
+h:close()
+if string.find(v, &#34;Atom&#34;, 1, true) ~= nil then
+    mp.commandv(&#34;apply-profile&#34;, &#34;atom&#34;)
+end
+^D</pre>
+
+<p>You can check out if everything is correct with <code>mpv -v [...]</code>. Enjoy :)</p>
+
+<!-- end doc -->
+
+</body></html>

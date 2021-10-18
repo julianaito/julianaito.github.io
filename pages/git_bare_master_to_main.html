@@ -1,0 +1,142 @@
+<!DOCTYPE html><html><head><title>Charlène's - How i&#39;ve moved my git repos branches from master to main (non mainstream version)</title>
+<meta charset="utf-8">
+
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="/assets/style.css">
+        <link rel="icon" href="/assets/favicon.ico">
+
+</head>
+<body class='pod'>
+<!-- start doc -->
+
+    <div> <h1><a href="/" title="HomePage">Charlène's</a></h1> <p
+    class="subtitle">...  it's worse than your datacenter.</p> <hr/> <div
+    class="navbar"> <a href="/">Home</a>&nbsp;|&nbsp;<a
+    href="https://git.charlenew.xyz">Git Repo</a>&nbsp;|&nbsp;<a
+    href="/stuff">Stuff</a>&nbsp;|&nbsp;<a href="/feed.atom">Atom feed</a>
+    <hr>
+    </div>
+
+<h2><a class='u'
+name="How_i&#39;ve_moved_my_git_repos_branches_from_master_to_main_(non_mainstream_version)"
+>How i&#39;ve moved my git repos branches from master to main (non mainstream version)</a></h2>
+
+<p><i>Latest update: 2021-01-02</i></p>
+
+<p>I won&#39;t discuss the whole affair,
+as it has been done elsewhere many times.
+Tutorials are everywhere to do so,
+yet,
+i had two problems:</p>
+
+<ul>
+<li>I do not use github for my personal stuff,
+it comes with a small yet important difference since i&#39;ve to administer (?) remote bare repositories</li>
+
+<li>As far as git frontends go,
+i am my own vendor thanks to <a href="https://git.charlenew.xyz/gigit/" class="podlinkurl"
+>gigit</a>,
+based on a <a href="https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks" class="podlinkurl"
+><i>post-receive</i></a> hack,
+so this could apply to any similar git frontends.</li>
+</ul>
+
+<p>I am quickly explaining the whole process here.
+For reference; <code>WWWSRC</code> is the root directory of all your public git repositories.</p>
+
+<h3><a class='u'
+name="Warn_your_users;_set_a_deadline"
+>Warn your users; set a deadline</a></h3>
+
+<p>In my case,
+and according to the httpd logs,
+it was acceptable to do without that,
+but in a more popular one you want to give them a <a href="https://github.com/ibara/oksh/issues/56" class="podlinkurl"
+>deadline</a>.</p>
+
+<p>I&#39;ll detail below <a href="#Update_your_cloned_repos_(for_you_and_your_users)" class="podlinkpod"
+>how to update their cloned repo</a>.</p>
+
+<h3><a class='u'
+name="Backup_your_stuff"
+>Backup your stuff</a></h3>
+
+<p>I <b>strongly</b> advise to backup your remote git repositories.
+I have myself lost all my remote repos while experimenting,
+but since i do daily backups i was hopefully able to recover quickly ;-)</p>
+
+<h3><a class='u'
+name="Modify_your_git_frontend_(mostly_apply_to_gigit,_your_mileage_may_vary)"
+>Modify your git frontend (mostly apply to gigit,
+your mileage may vary)</a></h3>
+
+<p>The first step was to change my git frontend,
+and modify all the references from the <i>master</i> branch to the <i>main</i> one:</p>
+
+<ul>
+<li>In your post-receive hook</li>
+
+<li>Eventually to your html/whatever generator</li>
+
+<li>To your doc</li>
+</ul>
+
+<p>Once everything was ironed out,
+i had now to deal with the repositories.</p>
+
+<p><i>From here,
+i should have done this out of production.
+In that case,
+you may want to copy WWWSRC to WWWSRCNEW and clone all the repos with the temporary remote for conversion.
+Once the conversion is done it is just about replacing WWWSRC by WWWSRCNEW.</i></p>
+
+<h3><a class='u'
+name="Convert_your_repos_(in_2_easy_but_tedious_steps)"
+>Convert your repos (in 2 easy but tedious steps)</a></h3>
+
+<p>I proceeded like this for each of my repositories.</p>
+
+<p>On my <b>remote</b> bare git repos,
+i had to do this to make &#39;main&#39; the default branch:</p>
+
+<pre>$ cd $WWWSRC/myrepo.git
+$ vi hooks/hooks/post-receive
+$ #  ^ and rename all master &#39;branch&#39; reference to &#39;main&#39;. sed could do the job.
+$ git symbolic-ref HEAD refs/heads/main</pre>
+
+<p>The problem right now is that the remote repo has no content for the <i>main</i> branch, that does not exist yet. Time to feed it:</p>
+
+<p>On my <b>local</b> repos then, i moved the branch like this:</p>
+
+<pre>$ git branch -m master main
+$ git checkout main
+$ git push -u origin main
+$ git push origin --delete master
+$ # and now do an empty yet informative commit to see the result:
+$ git commit --allow-empty  -m &#34;master branch renamed to main&#34;</pre>
+
+<h3><a class='u'
+name="Change_your_git_config_to_define_the_initial_branch_name"
+>Change your git config to define the initial branch name</a></h3>
+
+<p>This requires git&#62;=2.28:</p>
+
+<pre>$ git config --global init.defaultBranch main</pre>
+
+<h3><a class='u'
+name="Update_your_cloned_repos_(for_you_and_your_users)"
+>Update your cloned repos (for you and your users)</a></h3>
+
+<p>Your users (and you if you did the conversion out of production) will either need to clone again repos, or update them.</p>
+
+<p>While cloning again is indeed easier, here is how to convert a cloned repo:</p>
+
+<pre>$ git checkout master
+$ git branch -m master main
+$ git fetch
+$ git branch --unset-upstream
+$ git branch -u origin/main</pre>
+
+<!-- end doc -->
+
+</body></html>

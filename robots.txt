@@ -1,0 +1,3 @@
+User-Agent: *
+Disallow: /*.pod
+Disallow: /pages/*.pod
