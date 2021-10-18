@@ -12,8 +12,8 @@
     <div> <h1><a href="/" title="HomePage">Charlène's</a></h1> <p
     class="subtitle">...  it's worse than your datacenter.</p> <hr/> <div
     class="navbar"> <a href="/">Home</a>&nbsp;|&nbsp;<a
-    href="https://git.charlenew.xyz">Git Repo</a>&nbsp;|&nbsp;<a
-    href="/stuff">Stuff</a>&nbsp;|&nbsp;<a href="/feed.atom">Atom feed</a>
+    href="https://github.com/julianaito/git.charlenew.xyz">Git Repo</a>&nbsp;|&nbsp;<a
+    href="/stuff">Stuff</a>
     <hr>
     </div>
 
@@ -86,8 +86,8 @@ name="I_can&#39;t_install_distcc_on_$SLOW_ARCH_due_to_library_issues!"
 <p><i>(gtar can do smarter things and avoid to extract everything, by the way.)</i></p>
 
 <pre>$ cd /tmp
-$ ftp -o - https://git.charlenew.xyz/mystuff.public-latest.tar.gz | tar xvzf -
-$ cp -a mystuff.public-latest/devel/distcc-minimal /usr/ports/devel</pre>
+$ ftp -o - https://github.com/julianaito/git.charlenew.xyz/archive/refs/tags/20211018.tar.gz | tar xvzf -
+$ cp -a git.charlenew.xyz-20211018/mystuff.public-latest/devel/distcc-minimal /usr/ports/devel</pre>
 
 <p>Now comment the COMPILER_WRAPPER lines in <code>/etc/mk.conf</code>, then:</p>
 
